@@ -16,9 +16,9 @@
 #include <ggml-metal.h>
 #endif
 
-namespace qwen {
+namespace qwen2 {
 
-class QwenTokenizer;
+class Qwen2Tokenizer;
 
 // ===== common =====
 
@@ -36,7 +36,7 @@ class LogMessageFatal {
     std::ostringstream oss_;
 };
 
-#define QWEN_THROW ::qwen::LogMessageFatal(__FILE__, __LINE__).stream()
+#define QWEN_THROW ::qwen2::LogMessageFatal(__FILE__, __LINE__).stream()
 #define QWEN_CHECK(cond) \
     if (!(cond)) \
     QWEN_THROW << "check failed (" #cond ") "
@@ -140,6 +140,8 @@ class RMSNorm {
     bool inplace;
 };
 
+// ggml helper functions above stay the same
+
 class BaseStreamer{
   public:
     virtual ~BaseStreamer() = default;
@@ -160,14 +162,14 @@ class StreamerGroup : public BaseStreamer {
 // reference: https://github.com/huggingface/transformers/blob/main/src/transformers/generation/streamers.py
 class TextStreamer : public BaseStreamer {
   public:
-    TextStreamer(std::ostream &os, QwenTokenizer *tokenizer)
+    TextStreamer(std::ostream &os, Qwen2Tokenizer *tokenizer)
         : os_(os), tokenizer_(tokenizer), is_prompt_(true), print_len_(0) {}
     auto put(const std::vector<int> &output_ids) -> void override;
     auto end() -> void override;
 
   private:
     std::ostream &os_;
-    QwenTokenizer *tokenizer_;
+    Qwen2Tokenizer *tokenizer_;
     bool is_prompt_;
     std::vector<int> token_cache_;
     int print_len_;
@@ -270,9 +272,12 @@ struct TokenIdScore {
   }
 };
 
-// ===== Qwen-7B =====
+// streamers, model loader and generation above stay the same
 
-struct QwenConfig {
+// ===== Qwen2-0.5B =====
+
+// make sure config is consistent with the converter Qwen2Converter.dump_config()
+struct Qwen2Config {
   // common attributes
   ggml_type dtype;
   int vocab_size;
@@ -290,10 +295,11 @@ struct QwenConfig {
   int im_end_id;
 };
 
-class QwenTokenizer {
+// tokenizer is actually the same as Qwen1
+class Qwen2Tokenizer {
   public:
 
-    QwenTokenizer(const std::string & tiktoken_path, const QwenConfig &config);
+    Qwen2Tokenizer(const std::string & tiktoken_path, const Qwen2Config &config);
 
     auto encode(const std::string &text, int max_length) const -> std::vector<int>;
 
@@ -311,69 +317,80 @@ class QwenTokenizer {
     int im_end_id;
 };
 
-class QwenAttention {
+// attention layer is different, c_attn is explicitly splitted into qkv
+class Qwen2Attention {
   public:
-    QwenAttention() : num_attention_heads(0), num_kv_heads(0) {}
-    QwenAttention(ModelContext *ctx, int hidden_size, int num_attention_heads, int num_kv_heads, int max_length);
+    Qwen2Attention() : num_attention_heads(0), num_kv_heads(0) {}
+    Qwen2Attention(ModelContext *ctx, int hidden_size, int num_attention_heads, int num_kv_heads, int max_length);
 
     auto forward(ModelContext *ctx, ggml_tensor *hidden_states, ggml_tensor *KQ_pos, int n_ctx) const -> ggml_tensor *;
 
     int num_attention_heads;
     int num_kv_heads;
-    Linear c_attn;
-    Linear c_proj;
+    // Linear c_attn;
+    // Linear c_proj;
+    Linear q_proj;
+    Linear k_proj;
+    Linear v_proj;
+    Linear o_proj;
     ggml_tensor *k_cache; // [n_head, maxlen, head_size]
     ggml_tensor *v_cache; // [n_head, head_size, maxlen]
 };
 
-class QwenMLP {
+class Qwen2MLP {
   public:
-    QwenMLP() = default;
-    QwenMLP(ModelContext * ctx, int hidden_size, int intermediate_size)
-      : w1(ctx, hidden_size, intermediate_size / 2, false),
-        w2(ctx, hidden_size, intermediate_size / 2, false),
-        c_proj(ctx, intermediate_size / 2, hidden_size, false) {}
+    Qwen2MLP() = default;
+    Qwen2MLP(ModelContext * ctx, int hidden_size, int intermediate_size)
+      : gate_proj(ctx, hidden_size, intermediate_size , false),
+        up_proj(ctx, hidden_size, intermediate_size , false),
+        down_proj(ctx, intermediate_size , hidden_size, false) {}
 
     auto forward(ModelContext *ctx, ggml_tensor *hidden_states) const -> ggml_tensor *;
 
-    Linear w1;
-    Linear w2;
-    Linear c_proj;
+    // Linear w1;
+    // Linear w2;
+    // Linear c_proj;
+    // we still rename the weights for cosmetic 
+    Linear gate_proj;
+    Linear up_proj;
+    Linear down_proj;
 };
 
-class QwenBlock {
+class Qwen2Block {
   public:
-    QwenBlock() = default;
-    QwenBlock(ModelContext *ctx, int hidden_size, int num_attention_heads, int num_kv_heads, int intermediate_size, int max_length)
-      : ln_1(ctx, hidden_size, false),
+    Qwen2Block() = default;
+    Qwen2Block(ModelContext *ctx, int hidden_size, int num_attention_heads, int num_kv_heads, int intermediate_size, int max_length)
+      : input_layernorm(ctx, hidden_size, false),
         attn(ctx, hidden_size, num_attention_heads, num_kv_heads, max_length),
-        ln_2(ctx, hidden_size, false),
+        post_attention_layernorm(ctx, hidden_size, false),
         mlp(ctx, hidden_size, intermediate_size) {}
 
     auto forward(ModelContext *ctx, ggml_tensor *hidden_states, ggml_tensor *KQ_pos, int n_ctx) const -> ggml_tensor *;
 
-    RMSNorm ln_1;
-    QwenAttention attn;
-    RMSNorm ln_2;
-    QwenMLP mlp;
+    // we still rename the layers for cosmetic 
+    RMSNorm input_layernorm;//ln_1;
+    Qwen2Attention attn;
+    RMSNorm post_attention_layernorm;//ln_2;
+    Qwen2MLP mlp;
 };
 
-class QwenModel {
+class Qwen2Model {
   public:
-    QwenModel() = default;
-    QwenModel(ModelContext *ctx, const QwenConfig &config);
+    Qwen2Model() = default;
+    Qwen2Model(ModelContext *ctx, const Qwen2Config &config);
 
     auto forward(ModelContext *ctx, ggml_tensor *input_ids, ggml_tensor *KQ_pos, int n_ctx) const -> ggml_tensor *;
 
-    Embedding wte;
-    std::vector<QwenBlock> layers;
-    RMSNorm ln_f;
+    // we still rename the weights for cosmetic 
+    Embedding embed_tokens;//wte;
+    std::vector<Qwen2Block> layers;
+    RMSNorm norm;//ln_f;
 };
 
-class QwenForCausalLM {
+class Qwen2ForCausalLM {
   public:
-    QwenForCausalLM(const QwenConfig &config);
-    ~QwenForCausalLM();
+    Qwen2ForCausalLM(const Qwen2Config &config);
+    ~Qwen2ForCausalLM();
 
     auto generate_next_token(
       const std::vector<int> &input_ids,
@@ -402,11 +419,14 @@ class QwenForCausalLM {
 
     auto forward(ModelContext *ctx, ggml_tensor *input_ids, ggml_tensor *KQ_pos, int n_ctx) const -> ggml_tensor *;
 
-    static constexpr size_t MEM_SIZE     = 512 * MB;  // 2k context
+// ggml_new_object: not enough space in the context's memory pool (needed 80224, available 79904)
+// Segmentation fault (core dumped)
+// need to MEM_SIZE 
+    static constexpr size_t MEM_SIZE     = 600 * MB;  // 2k context
     static constexpr size_t SCRATCH_SIZE = 1280 * MB; // 2k context
 
-    QwenConfig config;
-    QwenModel transformer;
+    Qwen2Config config;
+    Qwen2Model transformer;
     Linear lm_head;
 
   private:
@@ -430,9 +450,9 @@ class Pipeline {
               BaseStreamer *streamer = nullptr) const -> std::string;
 
   public:
-    std::unique_ptr<QwenTokenizer> tokenizer;
-    std::unique_ptr<QwenForCausalLM> model;
+    std::unique_ptr<Qwen2Tokenizer> tokenizer;
+    std::unique_ptr<Qwen2ForCausalLM> model;
     std::unique_ptr<MappedFile> mapped_file;
 };
 
-} // namespace qwen
+} // namespace qwen2

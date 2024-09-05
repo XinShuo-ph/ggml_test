@@ -1,22 +1,7 @@
-# qwen.cpp
+# qwen2.cpp
 
-C++ implementation of [Qwen-LM](https://github.com/QwenLM/Qwen) for real-time chatting on your MacBook.
+C++ implementation of [Qwen2](https://huggingface.co/Qwen/Qwen2-0.5B) models.
 
-## Updates
-- **`2023/12/05`** qwen was merged to [llama.cpp](https://github.com/ggerganov/llama.cpp/pull/4281) and supports gguf format.
-
-## Features
-
-Highlights:
-* [x] Pure C++ implementation based on [ggml](https://github.com/ggerganov/ggml), working in the same way as [llama.cpp](https://github.com/ggerganov/llama.cpp).
-* [x] Pure C++ tiktoken implementation.
-* [x] Streaming generation with typewriter effect.
-* [x] Python binding.
-
-Support Matrix:
-* Hardwares: x86/arm CPU, NVIDIA GPU
-* Platforms: Linux, MacOS
-* Models: [Qwen-LM](https://github.com/QwenLM/Qwen)
 
 ## Getting Started
 
@@ -24,10 +9,10 @@ Support Matrix:
 
 Clone the qwen.cpp repository into your local machine:
 ```sh
-git clone --recursive https://github.com/QwenLM/qwen.cpp && cd qwen.cpp
+git clone --recursive https://github.com/QwenLM/qwen.cpp && cd qwen_cpp
 ```
 
-If you forgot the `--recursive` flag when cloning the repository, run the following command in the `qwen.cpp` folder:
+If you forgot the `--recursive` flag when cloning the repository, run the following command in the `qwen_cpp` folder:
 ```sh
 git submodule update --init --recursive
 ```
@@ -36,14 +21,12 @@ Download the qwen.tiktoken file from [Hugging Face](https://huggingface.co/Qwen/
 
 **Quantize Model**
 
-Use `convert.py` to transform Qwen-LM into quantized GGML format. For example, to convert the fp16 original model to q4_0 (quantized int4) GGML model, run:
+Use `convert.py` to transform Qwen2 into quantized GGML format. For example, to convert the fp16 original model to q4_0 (quantized int4) GGML model, run:
 ```sh
-python3 qwen_cpp/convert.py -i Qwen/Qwen-7B-Chat -t q4_0 -o qwen7b-ggml.bin
+python qwen_cpp/convert.py -i Qwen/Qwen2-0.5B -t q4_0 -o Qwen2-0.5B-ggml.bin
 ```
 
-The original model (`-i <model_name_or_path>`) can be a HuggingFace model name or a local path to your pre-downloaded model. Currently supported models are:
-* Qwen-7B: `Qwen/Qwen-7B-Chat`
-* Qwen-14B: `Qwen/Qwen-14B-Chat`
+The original model (`-i <model_name_or_path>`) can be a HuggingFace model name or a local path to your pre-downloaded model. Currently supported models are Qwen2 family models.
 
 You are free to try any of the below quantization types by specifying `-t <type>`:
 * `q4_0`: 4-bit integer quantization with fp16 scales.
@@ -59,18 +42,17 @@ You are free to try any of the below quantization types by specifying `-t <type>
 Compile the project using CMake:
 ```sh
 cmake -B build
-cmake --build build -j --config Release
+cmake --build build -j 32 --config Release
 ```
 
 Now you may chat with the quantized Qwen-7B-Chat model by running:
 ```sh
-./build/bin/main -m qwen7b-ggml.bin --tiktoken Qwen-7B-Chat/qwen.tiktoken -p 你好
-# 你好！很高兴为你提供帮助。
+./build/bin/main -m Qwen2-0.5B-ggml.bin --tiktoken qwen.tiktoken -p 你好
 ```
 
 To run the model in interactive mode, add the `-i` flag. For example:
 ```sh
-./build/bin/main -m qwen7b-ggml.bin --tiktoken Qwen-7B-Chat/qwen.tiktoken -i
+./build/bin/main -m Qwen2-0.5B-ggml.bin --tiktoken qwen.tiktoken -i
 ```
 In interactive mode, your chat history will serve as the context for the next-round conversation.
 

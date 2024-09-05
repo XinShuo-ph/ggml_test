@@ -112,17 +112,19 @@ static auto get_utf8_line(std::string &line) -> bool {
 static auto chat(Args &args) -> void {
   ggml_time_init();
   int64_t start_load_us = ggml_time_us();
-  qwen::Pipeline pipeline(args.model_path, args.tiktoken_path);
+  std::cout << "loading qwen2 model from " << args.model_path << "...\n";
+  qwen2::Pipeline pipeline(args.model_path, args.tiktoken_path);
+  std::cout << "pipeline loaded\n";
   int64_t end_load_us = ggml_time_us();
 
-  std::string model_name = "qwen";
+  std::string model_name = "qwen2";
 
-  auto text_streamer = std::make_shared<qwen::TextStreamer>(std::cout, pipeline.tokenizer.get());
-  auto perf_streamer = std::make_shared<qwen::PerfStreamer>();
-  auto streamer = std::make_shared<qwen::StreamerGroup>(
-    std::vector<std::shared_ptr<qwen::BaseStreamer>>{text_streamer, perf_streamer});
+  auto text_streamer = std::make_shared<qwen2::TextStreamer>(std::cout, pipeline.tokenizer.get());
+  auto perf_streamer = std::make_shared<qwen2::PerfStreamer>();
+  auto streamer = std::make_shared<qwen2::StreamerGroup>(
+    std::vector<std::shared_ptr<qwen2::BaseStreamer>>{text_streamer, perf_streamer});
 
-  qwen::GenerationConfig gen_config(args.max_length, args.max_context_length, args.temp > 0, args.top_k,
+  qwen2::GenerationConfig gen_config(args.max_length, args.max_context_length, args.temp > 0, args.top_k,
                                     args.top_p, args.temp, args.repeat_penalty, args.num_threads);
 
   if (args.verbose) {
@@ -150,7 +152,7 @@ static auto chat(Args &args) -> void {
               << "temperature = " << args.temp << " | "
               << "num_threads = " << args.num_threads << " |\n";
 
-    std::cout << "loaded qwen model from " << args.model_path
+    std::cout << "loaded qwen2 model from " << args.model_path
               << " within: " << (end_load_us - start_load_us) / 1000.f << " ms\n";
 
     std::cout << std::endl;
@@ -162,18 +164,17 @@ static auto chat(Args &args) -> void {
   }
 
   if (args.interactive) {
-    std::cout << R"( _____                                                      )" << '\n'
-              << R"(|  _  |                                                     )" << '\n'
-              << R"(| | | | __      __   ___   _ __         ___   _ __    _ __  )" << '\n'
-              << R"(| | | | \ \ /\ / /  / _ \ | '_ \       / __| | '_ \  | '_ \ )" << '\n'
-              << R"(\ \/' /  \ V  V /  |  __/ | | | |  _  | (__  | |_) | | |_) |)" << '\n'
-              << R"( \_/\_\   \_/\_/    \___| |_| |_| (_)  \___| | .__/  | .__/ )" << '\n'
-              << R"(                                             | |     | |    )" << '\n'
-              << R"(                                             |_|     |_|    )" << '\n'
+    std::cout << R"(   ____                     ___                    )" << '\n'
+              << R"(  / __ \                   |__ \                   )" << '\n'
+              << R"( | |  | |_      _____ _ __    ) |  ___ _ __  _ __  )" << '\n'
+              << R"( | |  | \ \ /\ / / _ \ '_ \  / /  / __| '_ \| '_ \ )" << '\n'
+              << R"( | |__| |\ V  V /  __/ | | |/ /_ | (__| |_) | |_) |)" << '\n'
+              << R"(  \___\_\ \_/\_/ \___|_| |_|____(_)___| .__/| .__/ )" << '\n'
+              << R"(                                      | |   | |    )" << '\n'
+              << R"(                                      |_|   |_|    )" << '\n'
               << '\n';
-
     std::cout
-        << "Welcome to Qwen.cpp! Ask whatever you want. Type 'clear' to clear context. Type 'stop' to exit.\n"
+        << "Welcome to Qwen2.cpp! Ask whatever you want. Type 'clear' to clear context. Type 'stop' to exit.\n"
         << "\n";
 
     std::vector<std::string> history;
