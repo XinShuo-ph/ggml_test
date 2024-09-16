@@ -1,3 +1,8 @@
+/*
+References:
+https://github.com/NexaAI/nexa-ggml/blob/main/examples/magika/main.cpp
+https://github.com/NexaAI/nexa-ggml/blob/main/examples/simple/simple-ctx.cpp
+*/
 #include "ggml.h"
 #include "common.h"
 #include <cmath>
@@ -10,20 +15,18 @@
 #include <vector>
 #include <algorithm>
 
-// Define the structure for our three-layer neural network model
-struct three_layer_nn_model {
+// Define the structure for a two layer MLP
+struct mlp_model {
     // Weights and biases for each layer
-    struct ggml_tensor * nexa_fc1_weight;
-    struct ggml_tensor * nexa_fc1_bias;
-    struct ggml_tensor * nexa_fc2_weight;
-    struct ggml_tensor * nexa_fc2_bias;
-    struct ggml_tensor * nexa_fc3_weight;
-    struct ggml_tensor * nexa_fc3_bias;
+    struct ggml_tensor * w1;
+    struct ggml_tensor * b1;
+    struct ggml_tensor * w2;
+    struct ggml_tensor * b2;
     struct ggml_context * ctx;
 };
 
 // Function to load the model from a file
-bool three_layer_nn_model_load(const std::string & fname, three_layer_nn_model & model) {
+bool load_model(const std::string & fname, mlp_model & model) {
     struct gguf_init_params params = {
         /*.no_alloc   =*/ false,
         /*.ctx        =*/ &model.ctx,
@@ -34,26 +37,12 @@ bool three_layer_nn_model_load(const std::string & fname, three_layer_nn_model &
         return false;
     }
     // Load weights and biases for each layer
-    model.nexa_fc1_weight = ggml_get_tensor(model.ctx, "nexa_fc1_weights");
-    model.nexa_fc1_bias = ggml_get_tensor(model.ctx, "nexa_fc1_bias");
-
-    model.nexa_fc2_weight = ggml_get_tensor(model.ctx, "nexa_fc2_weights");
-    model.nexa_fc2_bias = ggml_get_tensor(model.ctx, "nexa_fc2_bias");
-
-    model.nexa_fc3_weight = ggml_get_tensor(model.ctx, "nexa_fc3_weights");
-    model.nexa_fc3_bias = ggml_get_tensor(model.ctx, "nexa_fc3_bias");
+    model.w1 = ggml_get_tensor(model.ctx, "w1");
+    model.b1 = ggml_get_tensor(model.ctx, "b1");
+    model.w2 = ggml_get_tensor(model.ctx, "w2");
+    model.b2 = ggml_get_tensor(model.ctx, "b2");
 
     return true;
-}
-
-
-/* Used to debug about intermediate tensor information */
-void print_tensor_info(const char* name, ggml_tensor* tensor) {
-    printf("%s: shape [%d, %d, %d, %d], type %d\n", 
-           name, tensor->ne[0], tensor->ne[1], tensor->ne[2], tensor->ne[3], tensor->type);
-    // Print first few values
-    float* data = (float*)tensor->data;
-    printf("First few values: %f, %f, %f, %f\n", data[0], data[1], data[2], data[3]);
 }
 
 /* Used to debug about intermediate tensor information */
@@ -69,8 +58,8 @@ void print_tensor(ggml_tensor* tensor, const char* name) {
 }
 
 
-// Function to evaluate the model
-std::vector<float> three_layer_nn_eval(
+// build the compute graph
+std::vector<float> build_graph(
         const three_layer_nn_model & model,
         const int n_threads,
         std::vector<float> input_data,
@@ -102,18 +91,14 @@ std::vector<float> three_layer_nn_eval(
     // First layer
     cur = ggml_mul_mat(ctx0, model.nexa_fc1_weight, cur);
     cur = ggml_add(ctx0, cur, model.nexa_fc1_bias);
-    // print_tensor(cur, "After FC1");
-    cur = ggml_relu(ctx0, cur);
-    // print_tensor(cur, "After FC1 ReLU");
+    print_tensor(cur, "After FC1");
+    cur = ggml_relu(ctx0, cur); // ReLU activation
+    print_tensor(cur, "After FC1 ReLU");
 
     // Second layer
     cur = ggml_mul_mat(ctx0, model.nexa_fc2_weight, cur);
     cur = ggml_add(ctx0, cur, model.nexa_fc2_bias);
     cur = ggml_relu(ctx0, cur);
-
-    // Third layer
-    cur = ggml_mul_mat(ctx0, model.nexa_fc3_weight, cur);
-    cur = ggml_add(ctx0, cur, model.nexa_fc3_bias);
 
     ggml_tensor * result = cur;
     ggml_set_name(result, "result");
@@ -146,8 +131,7 @@ int main(int argc, char ** argv) {
         exit(0);
     }
 
-    three_layer_nn_model model;
-    
+    mlp_modelmodel;
 
     // Load the model
     {
@@ -165,7 +149,7 @@ int main(int argc, char ** argv) {
     std::vector<float> input_data = {0.1, 0.2, 0.3, 0.4, 0.5};
 
     // Evaluate the model
-    std::vector<float> output = three_layer_nn_eval(model, 1, input_data, nullptr);
+    std::vector<float> output = build_graph(model, 1, input_data, nullptr);
     
     // Print the output vector
     fprintf(stdout, "%s: output vector: [", __func__);
