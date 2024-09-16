@@ -1,3 +1,8 @@
+/* 
+Backend Support:
+simple-backend.cpp introduces support for different computation backends (CPU, CUDA, Metal), while simple-ctx.cpp uses only the CPU.
+
+*/
 #include "ggml.h"
 
 #include <cassert>
