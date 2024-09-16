@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import os
-
+from torchinfo import summary
 
 # Check if CUDA is available
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = "cpu"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = "cpu"
 
 # Define MLP Layer
 class MLP(nn.Module):
@@ -41,6 +41,7 @@ def inference(model):
     sample_input = torch.tensor([0.5, 0.4, 0.3, 0.2, 0.1], dtype=torch.float32).to(device)
     # Reshape the input to match the expected shape (batch_size, input_size)
     sample_input = sample_input.view(1, -1)
+    print(f"Sample input:\n{sample_input}")
     
     # Forward pass
     output = model(sample_input)
@@ -65,6 +66,15 @@ if __name__ == '__main__':
 
     # Print model architecture and weights
     print_model_architecture_and_weights(model)
+
+    # Print model summary
+    print("\nModel Summary:")
+    summary(
+        model,
+        input_size=(1, 5),  # (batch_size, input_size)
+        col_names=["input_size", "output_size", "num_params", "trainable"],
+        col_width=20,
+    )
 
     # Run inference
     import time

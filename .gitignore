@@ -1,1 +1,58 @@
 __pycache__/
+
+build/
+build-*/
+out/
+tmp/
+models/
+models-mnt
+
+compile_commands.json
+CMakeSettings.json
+.vs/
+.vscode/
+.clangd
+
+.venv/
+ggml_env/
+.exrc
+.cache
+.DS_Store
+.stablelm
+.gpt-2
+
+src/arm_neon.h
+tests/arm_neon.h
+
+zig-out/
+zig-cache/
+
+*.o
+*.dot
+
+*.sw?
+
+__pycache__/
+
+# Model files
+ggml-model-f16.bin
+*.bat
+
+# New additions
+CMakeFiles/
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+CMakeCache.txt
+*.pc
+
+# Ignore all subdirectories in examples
+examples/*/
+
+# Specific files in examples
+examples/mlp/main_ctx.cpp
+examples/mlp/model/mlp.gguf
+
+# Ignore src and tests subdirectories
+src/
+tests/

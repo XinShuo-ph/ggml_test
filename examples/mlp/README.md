@@ -1,2 +1,6 @@
 # GGML for MLP
-Author : Alex Chen
+```
+cmake .
+make
+./mlp_example model/mlp.gguf # run the example
+```
