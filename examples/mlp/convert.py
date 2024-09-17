@@ -38,13 +38,16 @@ def convert(model_path, gguf_model_name):
     gguf_writer = gguf.GGUFWriter(gguf_model_name, "mlp")
 
     # Convert and add tensors for each layer
-    print("===== Converting layers to GGUF format ====")
-    for name, param in model.named_parameters():
-        print(f"  [{name}] {param.shape} {param.dtype}")
-        param_data = param.detach().cpu().numpy()
-        if 'weight' in name:
-            param_data = param_data.T  # Transpose weights
-        gguf_writer.add_tensor(name, param_data)
+    for layer_name in ['fc1', 'fc2']:
+        # Weights
+        weights = getattr(model, layer_name).weight.data.numpy()
+        weights = weights.astype(np.float32)
+        gguf_writer.add_tensor(f"{layer_name}.weight", weights)
+
+        # Biases
+        bias = getattr(model, layer_name).bias.data.numpy()
+        bias = bias.astype(np.float32)
+        gguf_writer.add_tensor(f"{layer_name}.bias", bias)
 
     # Write the GGUF file
     gguf_writer.write_header_to_file()

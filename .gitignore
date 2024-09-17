@@ -45,14 +45,3 @@ Makefile
 cmake_install.cmake
 CMakeCache.txt
 *.pc
-
-# Ignore all subdirectories in examples
-examples/*/
-
-# Specific files in examples
-examples/mlp/main_ctx.cpp
-examples/mlp/model/mlp.gguf
-
-# Ignore src and tests subdirectories
-src/
-tests/

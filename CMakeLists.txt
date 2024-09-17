@@ -186,10 +186,10 @@ add_subdirectory(src)
 # tests and examples
 #
 
-if (GGML_BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests)
-endif ()
+# if (GGML_BUILD_TESTS)
+#     enable_testing()
+#     add_subdirectory(tests)
+# endif ()
 
 if (GGML_BUILD_EXAMPLES)
     add_subdirectory(examples)
@@ -198,58 +198,59 @@ endif ()
 #
 # install
 #
+# Zack : comment below code to avoid install, we will use the library directly
 
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
+# include(GNUInstallDirs)
+# include(CMakePackageConfigHelpers)
 
-# all public headers
-set(GGML_PUBLIC_HEADERS
-    include/ggml.h
-    include/ggml-alloc.h
-    include/ggml-backend.h
-    include/ggml-blas.h
-    include/ggml-cann.h
-    include/ggml-cuda.h
-    include/ggml.h
-    include/ggml-kompute.h
-    include/ggml-metal.h
-    include/ggml-rpc.h
-    include/ggml-sycl.h
-    include/ggml-vulkan.h)
+# # all public headers
+# set(GGML_PUBLIC_HEADERS
+#     include/ggml.h
+#     include/ggml-alloc.h
+#     include/ggml-backend.h
+#     include/ggml-blas.h
+#     include/ggml-cann.h
+#     include/ggml-cuda.h
+#     include/ggml.h
+#     include/ggml-kompute.h
+#     include/ggml-metal.h
+#     include/ggml-rpc.h
+#     include/ggml-sycl.h
+#     include/ggml-vulkan.h)
 
-set_target_properties(ggml PROPERTIES PUBLIC_HEADER "${GGML_PUBLIC_HEADERS}")
-#if (GGML_METAL)
-#    set_target_properties(ggml PROPERTIES RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ggml-metal.metal")
-#endif()
-install(TARGETS ggml PUBLIC_HEADER)
+# set_target_properties(ggml PROPERTIES PUBLIC_HEADER "${GGML_PUBLIC_HEADERS}")
+# #if (GGML_METAL)
+# #    set_target_properties(ggml PROPERTIES RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ggml-metal.metal")
+# #endif()
+# install(TARGETS ggml PUBLIC_HEADER)
 
-if (BUILD_SHARED_LIBS)
-    install(TARGETS ggml LIBRARY)
-endif()
+# if (BUILD_SHARED_LIBS)
+#     install(TARGETS ggml LIBRARY)
+# endif()
 
-if (GGML_METAL)
-    install(
-        FILES src/ggml-metal.metal
-        PERMISSIONS
-            OWNER_READ
-            OWNER_WRITE
-            GROUP_READ
-            WORLD_READ
-        DESTINATION ${CMAKE_INSTALL_BINDIR})
+# if (GGML_METAL)
+#     install(
+#         FILES src/ggml-metal.metal
+#         PERMISSIONS
+#             OWNER_READ
+#             OWNER_WRITE
+#             GROUP_READ
+#             WORLD_READ
+#         DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-    if (NOT GGML_METAL_EMBED_LIBRARY)
-        install(
-            FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/default.metallib
-            DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
-    endif()
-endif()
+#     if (NOT GGML_METAL_EMBED_LIBRARY)
+#         install(
+#             FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/default.metallib
+#             DESTINATION ${CMAKE_INSTALL_BINDIR}
+#         )
+#     endif()
+# endif()
 
-if (GGML_STANDALONE)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ggml.pc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/ggml.pc
-        @ONLY)
+# if (GGML_STANDALONE)
+#     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ggml.pc.in
+#         ${CMAKE_CURRENT_BINARY_DIR}/ggml.pc
+#         @ONLY)
 
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ggml.pc
-        DESTINATION share/pkgconfig)
-endif()
+#     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ggml.pc
+#         DESTINATION share/pkgconfig)
+# endif()

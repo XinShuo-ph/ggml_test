@@ -6,9 +6,9 @@ The most recent remote fetch is [ggerganov/ggml@fbac47b](https://github.com/gger
 ```bash
 git clone --recursive https://github.com/NexaAI/nexa-ggml
 pip install -r requirements.txt
-mkdir build && cd build # Build the examples
+rm -rf build && mkdir build && cd build # Build the examples
 cmake ..
-cmake --build . --config Release -j 16 # build project
+cmake --build . --config Release -j16 # build project
 ./bin/mlp /home/ubuntu/nexa-ggml/examples/mlp/model/mlp.gguf # run example
 ```
 
