@@ -52,7 +52,7 @@ bool load_model(const std::string & fname, mlp_model & model) {
     }
 
     // Print dimensions of loaded tensors with correct format specifiers
-    fprintf(stdout, "w1 dimensions: %ld x %ld\n", model.w1->ne[0], model.w1->ne[1]);
+    fprintf(stdout, "w1 dimensions: %ld x %ld\n", model.w1->ne[0], model.w1->ne[1]); // ne : number of elements
     fprintf(stdout, "b1 dimensions: %ld\n", model.b1->ne[0]);
     fprintf(stdout, "w2 dimensions: %ld x %ld\n", model.w2->ne[0], model.w2->ne[1]);
     fprintf(stdout, "b2 dimensions: %ld\n", model.b2->ne[0]);
@@ -175,7 +175,7 @@ int main(int argc, char ** argv) {
     struct ggml_cgraph * gf = build_graph(ctx0, model, input_data, &result);
 
     // Compute the graph
-    compute_graph(gf, ctx0, 1, nullptr);
+    compute_graph(gf, ctx0, 1, nullptr); // set 1 thread for computation
 
     // Now that computation is done, we can print the stats
     print_tensor_stats("Input", ggml_get_tensor(ctx0, "input"));
