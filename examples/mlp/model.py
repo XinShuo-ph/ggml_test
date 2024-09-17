@@ -4,8 +4,8 @@ import os
 from torchinfo import summary
 
 # Check if CUDA is available
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 # Define MLP Layer
 class MLP(nn.Module):
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     model = MLP().to(device)
 
     # Load or save the model
-    model_path = 'model/two_layer_mlp.pth'
+    model_path = f'model/two_layer_mlp_{device}.pth'
     if os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Loaded model from {model_path}")

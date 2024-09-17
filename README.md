@@ -6,22 +6,41 @@ The most recent remote fetch is [ggerganov/ggml@fbac47b](https://github.com/gger
 ```bash
 git clone --recursive https://github.com/NexaAI/nexa-ggml
 pip install -r requirements.txt
-rm -rf build && mkdir build && cd build # Build the examples
+rm -rf build && mkdir build && cd build
 cmake ..
-cmake --build . --config Release -j16 # build project
+cmake --build . --config Release -j16
 ```
 Run CPU example
 ```bash
 python model.py
 python convert.py
-./bin/mlp_ctx /home/ubuntu/nexa-ggml/examples/mlp/model/mlp.gguf # run CPU example
+./bin/mlp_ctx /home/ubuntu/nexa-ggml/examples/mlp/model/mlp_cpu.gguf # run CPU example
 ```
 
 ## Build Project and run example with GPU backend
+CPU backend also works.
+```bash
+git clone --recursive https://github.com/NexaAI/nexa-ggml
+cd nexa-ggml && pip install -r requirements.txt
+rm -rf build && mkdir build && cd build
+cmake -DGGML_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc ..
+cmake --build . --config Release -j16
+```
 Run GPU example
 ```bash
-cmake -DGGML_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.1/bin/nvcc
-./bin/mlp_backend /home/ubuntu/nexa-ggml/examples/mlp/model/mlp.gguf --backend=cuda # run CUDA example
+./bin/mlp_backend /home/ubuntu/nexa-ggml/examples/mlp/model/mlp_cuda.gguf # run CUDA example
+```
+
+## Build Project and run example with Metal backend
+CPU backend also works.
+```bash
+git clone --recursive https://github.com/NexaAI/nexa-ggml
+cd nexa-ggml && pip install -r requirements.txt
+rm -rf build && mkdir build && cd build
+cmake -DGGML_METAL=ON -DBUILD_SHARED_LIBS=Off ..
+cmake --build . --config Release -j16
+```
+
 
 ```
 ## fetch remote

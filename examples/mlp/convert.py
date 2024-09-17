@@ -7,8 +7,8 @@ import numpy as np
 from model import MLP
 
 # Check if CUDA is available
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu") # must specify cpu or cpu-only ggml cannot work
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu") # must specify cpu or cpu-only ggml cannot work
 
 
 def print_ggml_layer_info(gguf_model_name):
@@ -40,12 +40,12 @@ def convert(model_path, gguf_model_name):
     # Convert and add tensors for each layer
     for layer_name in ['fc1', 'fc2']:
         # Weights
-        weights = getattr(model, layer_name).weight.data.numpy()
+        weights = getattr(model, layer_name).weight.data.cpu().numpy() # cast back to CPU, so GGUF does not have difference between CPU and GPU
         weights = weights.astype(np.float32)
         gguf_writer.add_tensor(f"{layer_name}.weight", weights)
 
         # Biases
-        bias = getattr(model, layer_name).bias.data.numpy()
+        bias = getattr(model, layer_name).bias.data.cpu().numpy()
         bias = bias.astype(np.float32)
         gguf_writer.add_tensor(f"{layer_name}.bias", bias)
 
@@ -61,6 +61,6 @@ def convert(model_path, gguf_model_name):
 
 
 if __name__ == '__main__':
-    model_path = 'model/two_layer_mlp.pth'
-    gguf_model_name = "model/mlp.gguf"
+    model_path = f"model/two_layer_mlp_{device}.pth"
+    gguf_model_name = f"model/mlp_{device}.gguf"
     convert(model_path, gguf_model_name)

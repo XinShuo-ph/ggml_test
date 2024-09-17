@@ -264,70 +264,45 @@ int main(int argc, char ** argv) {
     // Prepare input data with the correct size
     std::vector<float> input_data = {0.5, 0.4, 0.3, 0.2, 0.1};
 
-    // Allocate memory for computations
-    size_t buf_size = 16*1024*1024; // 16 MB
-    std::vector<uint8_t> buf(buf_size);
-
-    struct ggml_init_params params = {
-        /*.mem_size   =*/ buf_size,
-        /*.mem_buffer =*/ buf.data(),
-        /*.no_alloc   =*/ true, // Defer tensor allocation
-    };
-
-    // Initialize GGML context
-    struct ggml_context * ctx0 = ggml_init(params);
+    // Create an allocator
+    ggml_gallocr_t allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(model.backend));
 
     // Build the computation graph
     struct ggml_tensor * result = NULL;
-    struct ggml_cgraph * gf = build_graph(ctx0, model, input_data, &result);
+    struct ggml_cgraph * gf = build_graph(compute_ctx, model, input_data, &result);
 
-    // Calculate the temporary memory required to compute
-    ggml_gallocr_t allocr = NULL;
+    // Reserve memory for the graph
+    ggml_gallocr_reserve(allocr, gf);
 
-    {
-        // Create a new allocator
-        allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(model.backend));
+    // Get required buffer size
+    size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
 
-        // Reserve memory based on the graph
-        ggml_gallocr_reserve(allocr, gf);
+    fprintf(stderr, "%s: compute buffer size: %.4f KB\n", __func__, mem_size / 1024.0);
 
-        // Get required buffer size
-        size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
-
-        fprintf(stderr, "%s: compute buffer size: %.4f KB\n", __func__, mem_size / 1024.0);
-    }
+    // Allocate memory for graph tensors
+    ggml_gallocr_alloc_graph(allocr, gf);
 
     // Compute the graph
-    struct ggml_tensor * final_result = compute_graph(gf, model, allocr, 1);
-
-    // Now that computation is done, we can print the stats
-    print_tensor_stats("Input", ggml_get_tensor(ctx0, "input"));
-    print_tensor_stats("After w1 multiplication", ggml_get_tensor(ctx0, "mul_mat_0"));
-    print_tensor_stats("After b1 addition", ggml_get_tensor(ctx0, "add_0"));
-    print_tensor_stats("After FC1 ReLU", ggml_get_tensor(ctx0, "relu_0"));
-    print_tensor_stats("After w2 multiplication", ggml_get_tensor(ctx0, "mul_mat_1"));
-    print_tensor_stats("After b2 addition", ggml_get_tensor(ctx0, "add_1"));
-    print_tensor_stats("Final output", final_result);
+    ggml_backend_graph_compute(model.backend, gf);
 
     // Copy result data from backend memory to CPU
-    size_t output_size = ggml_nelements(final_result);
-    std::vector<float> output_vector(output_size);
-    ggml_backend_tensor_get(final_result, output_vector.data(), 0, ggml_nbytes(final_result));
+    std::vector<float> output_data(ggml_nelements(result));
+    ggml_backend_tensor_get(result, output_data.data(), 0, ggml_nbytes(result));
 
     fprintf(stdout, "%s: output vector: [", __func__);
-    for (size_t i = 0; i < output_vector.size(); ++i) {
-        fprintf(stdout, "%f", output_vector[i]);
-        if (i < output_vector.size() - 1) fprintf(stdout, ", ");
+    for (size_t i = 0; i < output_data.size(); ++i) {
+        fprintf(stdout, "%f", output_data[i]);
+        if (i < output_data.size() - 1) fprintf(stdout, ", ");
     }
     fprintf(stdout, "]\n");
 
     // Release backend memory used for computation
     ggml_gallocr_free(allocr);
 
-    ggml_free(ctx0);
+    // Free contexts
     ggml_free(model.ctx);
 
-    // Release backend buffer and free backend
+    // Release backend memory and free backend
     ggml_backend_buffer_free(model.buffer);
     ggml_backend_free(model.backend);
 
