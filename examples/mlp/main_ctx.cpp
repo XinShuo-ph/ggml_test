@@ -74,25 +74,14 @@ void print_tensor_stats(const char* name, struct ggml_tensor* t) {
     printf("%s: min=%f, max=%f, mean=%f\n", name, min, max, sum/size);
 }
 
-// build the compute graph
-std::vector<float> build_graph(
+// Function to build the compute graph
+struct ggml_cgraph * build_graph(
+        struct ggml_context * ctx0,
         const mlp_model & model,
-        const int n_threads,
-        std::vector<float> input_data,
-        const char * fname_cgraph
-        ) {
-    // Allocate memory for computations
-    static size_t buf_size = 1000000 * sizeof(float) * 4; // this is a rough estimate
-    static void * buf = malloc(buf_size);
+        const std::vector<float> & input_data,
+        struct ggml_tensor ** result_ptr) {
 
-    struct ggml_init_params params = {
-        /*.mem_size   =*/ buf_size,
-        /*.mem_buffer =*/ buf,
-        /*.no_alloc   =*/ false,
-    };
-
-    // Initialize GGML context
-    struct ggml_context * ctx0 = ggml_init(params);
+    // Create computation graph
     struct ggml_cgraph * gf = ggml_new_graph(ctx0);
 
     // Create input tensor
@@ -104,16 +93,31 @@ std::vector<float> build_graph(
 
     // First layer
     cur = ggml_mul_mat(ctx0, model.w1, cur);
+    ggml_set_name(cur, "mul_mat_0");
     cur = ggml_add(ctx0, cur, model.b1);
+    ggml_set_name(cur, "add_0");
     cur = ggml_relu(ctx0, cur);
+    ggml_set_name(cur, "relu_0"); // ReLU activation function makes all negative values zero
 
     // Second layer
     cur = ggml_mul_mat(ctx0, model.w2, cur);
+    ggml_set_name(cur, "mul_mat_1");
     cur = ggml_add(ctx0, cur, model.b2);
-    cur = ggml_relu(ctx0, cur);
+    ggml_set_name(cur, "add_1");
 
-    ggml_tensor * result = cur;
-    ggml_build_forward_expand(gf, result);
+    *result_ptr = cur;
+
+    ggml_build_forward_expand(gf, cur);
+
+    return gf;
+}
+
+// Function to compute the graph
+void compute_graph(
+        struct ggml_cgraph * gf,
+        struct ggml_context * ctx0,
+        const int n_threads,
+        const char * fname_cgraph) {
 
     // Execute the computation graph
     ggml_graph_compute_with_ctx(ctx0, gf, n_threads);
@@ -122,23 +126,7 @@ std::vector<float> build_graph(
         ggml_graph_export(gf, fname_cgraph);
         fprintf(stderr, "%s: exported compute graph to '%s'\n", __func__, fname_cgraph);
     }
-
-    // Now that computation is done, we can print the stats
-    print_tensor_stats("Input", input);
-    print_tensor_stats("After w1 multiplication", ggml_get_tensor(ctx0, "mul_mat_0"));
-    print_tensor_stats("After b1 addition", ggml_get_tensor(ctx0, "add_0"));
-    print_tensor_stats("After FC1 ReLU", ggml_get_tensor(ctx0, "relu_0"));
-    print_tensor_stats("After w2 multiplication", ggml_get_tensor(ctx0, "mul_mat_1"));
-    print_tensor_stats("After b2 addition", ggml_get_tensor(ctx0, "add_1"));
-    print_tensor_stats("Final output", result);
-
-    const float * output_data = ggml_get_data_f32(result);
-    std::vector<float> output_vector(output_data, output_data + ggml_nelements(result));
-
-    ggml_free(ctx0);
-    return output_vector;
 }
-
 
 int main(int argc, char ** argv) {
     srand(time(NULL));
@@ -170,16 +158,46 @@ int main(int argc, char ** argv) {
     // Prepare input data with the correct size
     std::vector<float> input_data = {0.5, 0.4, 0.3, 0.2, 0.1};
 
-    // run and build the model
-    std::vector<float> output = build_graph(model, 1, input_data, nullptr);
-    
+    // Allocate memory for computations
+    static size_t buf_size = 1000000 * sizeof(float) * 4; // this is a rough estimate
+    static void * buf = malloc(buf_size);
+
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ buf_size,
+        /*.mem_buffer =*/ buf,
+        /*.no_alloc   =*/ false,
+    };
+
+    // Initialize GGML context
+    struct ggml_context * ctx0 = ggml_init(params);
+
+    // Build the computation graph
+    struct ggml_tensor * result = NULL;
+    struct ggml_cgraph * gf = build_graph(ctx0, model, input_data, &result);
+
+    // Compute the graph
+    compute_graph(gf, ctx0, 1, nullptr);
+
+    // Now that computation is done, we can print the stats
+    print_tensor_stats("Input", ggml_get_tensor(ctx0, "input"));
+    print_tensor_stats("After w1 multiplication", ggml_get_tensor(ctx0, "mul_mat_0"));
+    print_tensor_stats("After b1 addition", ggml_get_tensor(ctx0, "add_0"));
+    print_tensor_stats("After FC1 ReLU", ggml_get_tensor(ctx0, "relu_0"));
+    print_tensor_stats("After w2 multiplication", ggml_get_tensor(ctx0, "mul_mat_1"));
+    print_tensor_stats("After b2 addition", ggml_get_tensor(ctx0, "add_1"));
+    print_tensor_stats("Final output", result);
+
+    const float * output_data = ggml_get_data_f32(result);
+    std::vector<float> output_vector(output_data, output_data + ggml_nelements(result));
+
     fprintf(stdout, "%s: output vector: [", __func__);
-    for (size_t i = 0; i < output.size(); ++i) {
-        fprintf(stdout, "%f", output[i]);
-        if (i < output.size() - 1) fprintf(stdout, ", ");
+    for (size_t i = 0; i < output_vector.size(); ++i) {
+        fprintf(stdout, "%f", output_vector[i]);
+        if (i < output_vector.size() - 1) fprintf(stdout, ", ");
     }
     fprintf(stdout, "]\n");
 
+    ggml_free(ctx0);
     ggml_free(model.ctx);
     return 0;
 }

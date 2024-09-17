@@ -16,6 +16,18 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_size, output_size, dtype=torch.float32)  # Second fully connected layer
         self.relu = nn.ReLU()  # ReLU activation function
 
+        # Initialize weights and biases to specific values
+        torch.manual_seed(0)  # For reproducibility
+
+        # Initialize weights
+        self.fc1.weight.data = torch.randn(self.fc1.weight.size()) * 0.1
+        self.fc2.weight.data = torch.randn(self.fc2.weight.size()) * 0.1
+
+        # Initialize biases
+        self.fc1.bias.data = torch.randn(self.fc1.bias.size()) * 0.1
+        self.fc2.bias.data = torch.randn(self.fc2.bias.size()) * 0.1
+
+
     def forward(self, x):
         x = self.fc1(x)
         x = self.relu(x)
