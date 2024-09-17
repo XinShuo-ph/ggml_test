@@ -4,16 +4,16 @@ import os
 from torchinfo import summary
 
 # Check if CUDA is available
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# device = "cpu"
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 # Define MLP Layer
 class MLP(nn.Module):
     def __init__(self, input_size=5, hidden_size=10, output_size=3):
         super(MLP, self).__init__()
         # Assign randomly initialized values
-        self.fc1 = nn.Linear(input_size, hidden_size)  # First fully connected layer
-        self.fc2 = nn.Linear(hidden_size, output_size)  # Second fully connected layer
+        self.fc1 = nn.Linear(input_size, hidden_size, dtype=torch.float32)  # First fully connected layer
+        self.fc2 = nn.Linear(hidden_size, output_size, dtype=torch.float32)  # Second fully connected layer
         self.relu = nn.ReLU()  # ReLU activation function
 
     def forward(self, x):
@@ -28,6 +28,7 @@ def print_model_architecture_and_weights(model):
     print(model)
     print("\nModel Parameters:")
     for name, param in model.named_parameters():
+        print(f"{name} device: {param.device}")
         if 'weight' in name:
             print(f"\n{name} shape: {param.shape}")
             print(param.data)
@@ -44,8 +45,9 @@ def inference(model):
     print(f"Sample input:\n{sample_input}")
     
     # Forward pass
-    output = model(sample_input)
-    print(f"Model output:\n{output}")
+    with torch.no_grad():
+        output = model(sample_input)
+        print(f"Model output:\n{output}")
 
 
 if __name__ == '__main__':
@@ -58,7 +60,7 @@ if __name__ == '__main__':
     # Load or save the model
     model_path = 'model/two_layer_mlp.pth'
     if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Loaded model from {model_path}")
     else:
         torch.save(model.state_dict(), model_path)
@@ -74,6 +76,7 @@ if __name__ == '__main__':
         input_size=(1, 5),  # (batch_size, input_size)
         col_names=["input_size", "output_size", "num_params", "trainable"],
         col_width=20,
+        device=device,  # Ensure the model stays on the specified device
     )
 
     # Run inference

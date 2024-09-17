@@ -7,8 +7,8 @@ import numpy as np
 from model import MLP
 
 # Check if CUDA is available
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# device = "cpu"
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu") # must specify cpu or cpu-only ggml cannot work
 
 
 def print_ggml_layer_info(gguf_model_name):
@@ -30,7 +30,7 @@ def print_ggml_layer_info(gguf_model_name):
 
 def convert(model_path, gguf_model_name):
     # Load the PyTorch model
-    model = MLP()
+    model = MLP().to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
