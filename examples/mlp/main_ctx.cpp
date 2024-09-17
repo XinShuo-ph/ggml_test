@@ -159,12 +159,11 @@ int main(int argc, char ** argv) {
     std::vector<float> input_data = {0.5, 0.4, 0.3, 0.2, 0.1};
 
     // Allocate memory for computations
-    static size_t buf_size = 1000000 * sizeof(float) * 4; // this is a rough estimate
-    static void * buf = malloc(buf_size);
+    size_t buf_size = 16*1024*1024; // 16 MB
 
     struct ggml_init_params params = {
         /*.mem_size   =*/ buf_size,
-        /*.mem_buffer =*/ buf,
+        /*.mem_buffer =*/ NULL,
         /*.no_alloc   =*/ false,
     };
 
