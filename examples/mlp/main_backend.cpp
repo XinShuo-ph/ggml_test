@@ -2,15 +2,6 @@
 References:
 https://github.com/NexaAI/nexa-ggml/blob/main/examples/magika/main.cpp
 https://github.com/NexaAI/nexa-ggml/blob/main/examples/simple/simple-ctx.cpp
-
-1. Model Loading : decide CPU, CUDA, or Metal backend, and load weights and biases for each layer.
-2. Graph Building
-3. Computation
-4. Main Function
-5. Memory Management
-
-The key feature of this implementation is its ability to use different backends (CPU, CUDA, or Metal) for computation, 
-depending on what's available. This allows for potential performance improvements on systems with compatible GPUs.
 */
 
 #include "ggml.h"
@@ -87,19 +78,33 @@ bool load_model(const std::string & fname, mlp_model & model) {
         model.backend = ggml_backend_cpu_init();
     }
 
-    // Now, create the GGUF context and let it create the GGML context
-    struct gguf_init_params params = {
-        /*.no_alloc   =*/ false, // Allow allocation
-        /*.ctx        =*/ &model.ctx,  // Pass address of model.ctx
-    };
+    // Initialize the GGML context
+    size_t ctx_size = 0;
+    ctx_size += 100 * ggml_tensor_overhead(); // tensors
 
-    struct gguf_context * ctx = gguf_init_from_file(fname.c_str(), params);
-    if (!ctx) {
-        fprintf(stderr, "%s: gguf_init_from_file() failed\n", __func__);
+    struct ggml_init_params ggml_params = {
+        /*.mem_size   =*/ ctx_size, // 16 MB for metadata
+        /*.mem_buffer =*/ NULL,
+         /*.no_alloc   =*/ true, // the tensors will be allocated later by ggml_backend_alloc_ctx_tensors()
+    };
+    model.ctx = ggml_init(ggml_params);
+    if (!model.ctx) {
+        fprintf(stderr, "%s: ggml_init() failed\n", __func__);
         return false;
     }
 
-    // Now, model.ctx should be set by gguf_init_from_file
+    // Now, initialize the GGUF context
+    struct gguf_init_params params = {
+        /*.no_alloc   =*/ true,  // We will handle tensor data allocation
+        /*.ctx        =*/ &model.ctx,  // Pass the context we just created
+    };
+
+    struct gguf_context * uctx = gguf_init_from_file(fname.c_str(), params);
+    if (!uctx) {
+        fprintf(stderr, "%s: gguf_init_from_file() failed\n", __func__);
+        ggml_free(model.ctx);
+        return false;
+    }
 
     // Load weights and biases for each layer
     model.w1 = ggml_get_tensor(model.ctx, "fc1.weight");
@@ -109,7 +114,8 @@ bool load_model(const std::string & fname, mlp_model & model) {
 
     if (!model.w1 || !model.b1 || !model.w2 || !model.b2) {
         fprintf(stderr, "%s: failed to load model tensors\n", __func__);
-        gguf_free(ctx);
+        gguf_free(uctx);
+        ggml_free(model.ctx);
         return false;
     }
 
@@ -128,10 +134,9 @@ bool load_model(const std::string & fname, mlp_model & model) {
     fprintf(stdout, "w2 dimensions: %" PRId64 " x %" PRId64 "\n", model.w2->ne[0], model.w2->ne[1]);
     fprintf(stdout, "b2 dimensions: %" PRId64 "\n", model.b2->ne[0]);
 
-    gguf_free(ctx);
+    gguf_free(uctx);
     return true;
 }
-
 
 /* Used to debug intermediate tensor information */
 void print_tensor_stats(const char* name, struct ggml_tensor* t) {
@@ -147,9 +152,8 @@ void print_tensor_stats(const char* name, struct ggml_tensor* t) {
         if (data[i] < min) min = data[i];
         if (data[i] > max) max = data[i];
     }
-    printf("%s: min=%f, max=%f, mean=%f\n", name, min, max, sum/size);
+    printf("%s: min=%f, max=%f, mean=%f\n", name, min, max, sum / size);
 }
-
 
 // Function to build the compute graph
 struct ggml_cgraph * build_graph(
@@ -189,34 +193,6 @@ struct ggml_cgraph * build_graph(
     ggml_build_forward_expand(gf, cur);
 
     return gf;
-}
-
-// Function to compute the graph
-struct ggml_tensor * compute_graph(
-        struct ggml_cgraph * gf,
-        const mlp_model & model,
-        ggml_gallocr_t allocr,
-        const int n_threads) {
-
-    // Allocate memory for graph tensors
-    ggml_gallocr_alloc_graph(allocr, gf);
-
-    if (ggml_backend_is_cpu(model.backend))
-    {
-        ggml_backend_cpu_set_n_threads(model.backend, n_threads); // Set number of threads for CPU backend
-    }
-
-#ifdef GGML_USE_METAL
-    if (ggml_backend_is_metal(model.backend))
-    {
-        ggml_backend_metal_set_n_cb(model.backend, n_threads); // Set number of threads for Metal backend
-    }
-#endif
-
-    ggml_backend_graph_compute(model.backend, gf); // Perform the computation
-
-    // Return the output tensor (last node in the graph)
-    return gf->nodes[gf->n_nodes - 1];
 }
 
 int main(int argc, char ** argv) {
@@ -263,21 +239,15 @@ int main(int argc, char ** argv) {
     // Prepare input data with the correct size
     std::vector<float> input_data = {0.5, 0.4, 0.3, 0.2, 0.1};
 
+    // Use the same context as the model for computation
+    struct ggml_context * ctx = model.ctx;
+
     // Create an allocator
     ggml_gallocr_t allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(model.backend));
 
-    // Initialize compute context
-    struct ggml_init_params compute_ctx_params = {
-        /*.mem_size   =*/ 16 * 1024 * 1024,  // 16 MB
-        /*.mem_buffer =*/ NULL,
-        /*.no_alloc   =*/ true, // Since we use allocator
-    };
-
-    struct ggml_context * compute_ctx = ggml_init(compute_ctx_params);
-
     // Build the computation graph
     struct ggml_tensor * result = NULL;
-    struct ggml_cgraph * gf = build_graph(compute_ctx, model, input_data, &result);
+    struct ggml_cgraph * gf = build_graph(ctx, model, input_data, &result);
 
     // Reserve memory for the graph
     ggml_gallocr_reserve(allocr, gf);
@@ -289,6 +259,18 @@ int main(int argc, char ** argv) {
 
     // Allocate memory for graph tensors
     ggml_gallocr_alloc_graph(allocr, gf);
+
+    // Set number of threads if using CPU backend
+    int n_threads = 4; // Adjust as needed
+    if (ggml_backend_is_cpu(model.backend)) {
+        ggml_backend_cpu_set_n_threads(model.backend, n_threads);
+    }
+
+    #ifdef GGML_USE_METAL
+    if (ggml_backend_is_metal(model.backend)) {
+        ggml_backend_metal_set_n_cb(model.backend, n_threads); // Set number of threads for Metal backend
+    }
+    #endif
 
     // Compute the graph
     ggml_backend_graph_compute(model.backend, gf);
@@ -308,7 +290,6 @@ int main(int argc, char ** argv) {
     ggml_gallocr_free(allocr);
 
     // Free contexts
-    ggml_free(compute_ctx);      // Free the compute context
     ggml_free(model.ctx);        // Free the model context
 
     // Release backend memory and free backend

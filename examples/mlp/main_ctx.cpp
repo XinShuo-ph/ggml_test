@@ -29,6 +29,7 @@ struct mlp_model {
 
 // Function to load the model from a file
 bool load_model(const std::string & fname, mlp_model & model) {
+    // 1. Allocate ggml_context to store tensor data
     struct gguf_init_params params = {
         /*.no_alloc   =*/ false,
         /*.ctx        =*/ &model.ctx,
@@ -40,6 +41,7 @@ bool load_model(const std::string & fname, mlp_model & model) {
         return false;
     }
 
+    // 2. Create tensors for the model and assign value
     // Load weights and biases for each layer
     model.w1 = ggml_get_tensor(model.ctx, "fc1.weight");
     model.b1 = ggml_get_tensor(model.ctx, "fc1.bias");
@@ -82,7 +84,7 @@ struct ggml_cgraph * build_graph(
         const std::vector<float> & input_data,
         struct ggml_tensor ** result_ptr) {
 
-    // Create computation graph
+    // 3. Create ggml_cgraph using forward computation
     struct ggml_cgraph * gf = ggml_new_graph(ctx0);
 
     // Create input tensor
@@ -113,7 +115,7 @@ struct ggml_cgraph * build_graph(
     return gf;
 }
 
-// Function to compute the graph
+// 4. Run the computation
 void compute_graph(
         struct ggml_cgraph * gf,
         struct ggml_context * ctx0,
@@ -174,8 +176,9 @@ int main(int argc, char ** argv) {
     // Build the computation graph
     struct ggml_tensor * result = NULL;
     struct ggml_cgraph * gf = build_graph(ctx0, model, input_data, &result);
+    ggml_graph_dump_dot(gf, NULL, "debug.dot");
 
-    // Compute the graph
+    // 5. Retrieve results (output tensors)
     compute_graph(gf, ctx0, 1, nullptr); // set 1 thread for computation
 
     // Now that computation is done, we can print the stats
@@ -197,6 +200,7 @@ int main(int argc, char ** argv) {
     }
     fprintf(stdout, "]\n");
 
+    // 6. Free memory and exit
     ggml_free(ctx0);
     ggml_free(model.ctx);
     return 0;
