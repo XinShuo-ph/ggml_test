@@ -26,9 +26,10 @@ rm -rf build && mkdir build && cd build
 cmake -DGGML_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc ..
 cmake --build . --config Release -j16
 ```
+
 Run GPU example
 ```bash
-./bin/mlp_backend /home/ubuntu/nexa-ggml/examples/mlp/model/mlp_cuda.gguf # run CUDA example
+./bin/mlp_backend /home/ubuntu/nexa-ggml/examples/mlp/model/mlp.gguf # run CUDA example
 ```
 
 ## Build Project and run example with Metal backend
@@ -41,8 +42,11 @@ cmake -DGGML_METAL=ON -DBUILD_SHARED_LIBS=Off ..
 cmake --build . --config Release -j16
 ```
 
-
+Run Metal example
+```bash
+./bin/mlp_backend /Users/zhiyuanli/Desktop/nexa-code/nexa-ggml/examples/mlp/model/mlp.gguf
 ```
+
 ## fetch remote
 ```bash
 git remote add ggml-upstream https://github.com/ggerganov/ggml.git

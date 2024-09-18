@@ -70,7 +70,7 @@ if __name__ == '__main__':
     model = MLP().to(device)
 
     # Load or save the model
-    model_path = f'model/two_layer_mlp_{device}.pth'
+    model_path = f'model/two_layer_mlp.pth'
     if os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Loaded model from {model_path}")

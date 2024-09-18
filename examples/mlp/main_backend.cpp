@@ -61,7 +61,7 @@ struct mlp_model {
 
 // Function to load the model from a file
 bool load_model(const std::string & fname, mlp_model & model) {
-    // initialize the backend
+    // Initialize the backend
     #ifdef GGML_USE_CUDA
         fprintf(stderr, "%s: using CUDA backend\n", __func__);
         model.backend = ggml_backend_cuda_init(0); // Initialize CUDA backend for device 0
@@ -81,26 +81,16 @@ bool load_model(const std::string & fname, mlp_model & model) {
         }
     #endif
 
-    // if there aren't GPU Backends fallback to CPU backend
+    // If there aren't GPU Backends, fallback to CPU backend
     if (!model.backend)
     {
         model.backend = ggml_backend_cpu_init();
     }
 
-    // Create GGML context with no allocation
-    struct ggml_init_params ggml_params = {
-        /*.mem_size   =*/ 0, // We will not allocate any memory in this context
-        /*.mem_buffer =*/ NULL,
-        /*.no_alloc   =*/ true, // No allocation
-    };
-    
-    // Create the context
-    model.ctx = ggml_init(ggml_params);
-
-    // Now, create the GGUF context using the existing GGML context
+    // Now, create the GGUF context and let it create the GGML context
     struct gguf_init_params params = {
-        /*.no_alloc   =*/ true,
-        /*.ctx        =*/ &model.ctx, // Use the context we created (pass address of model.ctx)
+        /*.no_alloc   =*/ false, // Allow allocation
+        /*.ctx        =*/ &model.ctx,  // Pass address of model.ctx
     };
 
     struct gguf_context * ctx = gguf_init_from_file(fname.c_str(), params);
@@ -108,6 +98,8 @@ bool load_model(const std::string & fname, mlp_model & model) {
         fprintf(stderr, "%s: gguf_init_from_file() failed\n", __func__);
         return false;
     }
+
+    // Now, model.ctx should be set by gguf_init_from_file
 
     // Load weights and biases for each layer
     model.w1 = ggml_get_tensor(model.ctx, "fc1.weight");
@@ -121,16 +113,10 @@ bool load_model(const std::string & fname, mlp_model & model) {
         return false;
     }
 
-    // Number of tensors in the model
-    // int num_tensors = 4;
-
-    // // Compute required memory for the context (overhead)
-    // size_t mem_size = ggml_tensor_overhead() * num_tensors;
-
     // Create the backend buffer and allocate the tensors from the context
     model.buffer = ggml_backend_alloc_ctx_tensors(model.ctx, model.backend);
 
-    // Load data from CPU memory to backend buffer
+    // Copy data from CPU to backend
     ggml_backend_tensor_set(model.w1, model.w1->data, 0, ggml_nbytes(model.w1));
     ggml_backend_tensor_set(model.b1, model.b1->data, 0, ggml_nbytes(model.b1));
     ggml_backend_tensor_set(model.w2, model.w2->data, 0, ggml_nbytes(model.w2));
@@ -147,7 +133,7 @@ bool load_model(const std::string & fname, mlp_model & model) {
 }
 
 
-/* Used to debug about intermediate tensor information */
+/* Used to debug intermediate tensor information */
 void print_tensor_stats(const char* name, struct ggml_tensor* t) {
     size_t size = ggml_nelements(t);
     std::vector<float> data(size);
@@ -190,7 +176,7 @@ struct ggml_cgraph * build_graph(
     cur = ggml_add(ctx0, cur, model.b1);
     ggml_set_name(cur, "add_0");
     cur = ggml_relu(ctx0, cur);
-    ggml_set_name(cur, "relu_0"); // ReLU activation function makes all negative values zero
+    ggml_set_name(cur, "relu_0"); // ReLU activation function
 
     // Second layer
     cur = ggml_mul_mat(ctx0, model.w2, cur);
@@ -233,10 +219,23 @@ struct ggml_tensor * compute_graph(
     return gf->nodes[gf->n_nodes - 1];
 }
 
-
 int main(int argc, char ** argv) {
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     ggml_time_init();
+
+    // Print CUDA availability
+    #ifdef GGML_USE_CUDA
+        std::cout << "GGML_USE_CUDA is defined. CUDA backend is available." << std::endl;
+    #else
+        std::cout << "GGML_USE_CUDA is not defined. CUDA backend is not available." << std::endl;
+    #endif
+
+    // Print Metal availability
+    #ifdef GGML_USE_METAL
+        std::cout << "GGML_USE_METAL is defined. Metal backend is available." << std::endl;
+    #else
+        std::cout << "GGML_USE_METAL is not defined. Metal backend is not available." << std::endl;
+    #endif
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s path/to/model.gguf\n", argv[0]);
@@ -266,6 +265,15 @@ int main(int argc, char ** argv) {
 
     // Create an allocator
     ggml_gallocr_t allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(model.backend));
+
+    // Initialize compute context
+    struct ggml_init_params compute_ctx_params = {
+        /*.mem_size   =*/ 16 * 1024 * 1024,  // 16 MB
+        /*.mem_buffer =*/ NULL,
+        /*.no_alloc   =*/ true, // Since we use allocator
+    };
+
+    struct ggml_context * compute_ctx = ggml_init(compute_ctx_params);
 
     // Build the computation graph
     struct ggml_tensor * result = NULL;
@@ -300,7 +308,8 @@ int main(int argc, char ** argv) {
     ggml_gallocr_free(allocr);
 
     // Free contexts
-    ggml_free(model.ctx);
+    ggml_free(compute_ctx);      // Free the compute context
+    ggml_free(model.ctx);        // Free the model context
 
     // Release backend memory and free backend
     ggml_backend_buffer_free(model.buffer);

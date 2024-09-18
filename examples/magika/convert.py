@@ -1,9 +1,14 @@
 import sys
 from tensorflow import keras
 import gguf
+from tensorflow.keras.layers import Lambda
 
 def convert(model_name):
-    model = keras.models.load_model(model_name, compile=False)
+    model = keras.models.load_model(
+        model_name,
+        compile=False,
+        custom_objects={'TFOpLambda': Lambda}
+    )
     gguf_model_name = model_name + ".gguf"
     gguf_writer = gguf.GGUFWriter(gguf_model_name, "magika")
 

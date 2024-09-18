@@ -3,9 +3,14 @@
 Simple example that shows how to use GGML for inference with the [Google Magika](https://github.com/google/magika) file type detection model.
 
 ### Usage
-
+```
+pip install --upgrade tensorflow keras
+```
 - Obtain the Magika model in H5 format
   - Pinned version: https://github.com/google/magika/blob/4460acb5d3f86807c3b53223229dee2afa50c025/assets_generation/models/standard_v1/model.h5
+```
+wget https://github.com/google/magika/blob/4460acb5d3f86807c3b53223229dee2afa50c025/assets_generation/models/standard_v1/model.h5
+```
 - Use `convert.py` to convert the model to gguf format:
 ```bash
   $ python examples/magika/convert.py /path/to/model.h5

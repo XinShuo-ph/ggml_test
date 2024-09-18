@@ -61,6 +61,6 @@ def convert(model_path, gguf_model_name):
 
 
 if __name__ == '__main__':
-    model_path = f"model/two_layer_mlp_{device}.pth"
-    gguf_model_name = f"model/mlp_{device}.gguf"
+    model_path = f"model/two_layer_mlp.pth"
+    gguf_model_name = f"model/mlp.gguf"
     convert(model_path, gguf_model_name)
