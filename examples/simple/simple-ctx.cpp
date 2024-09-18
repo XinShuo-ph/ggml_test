@@ -1,8 +1,12 @@
-/* 
-Backend Support:
-simple-backend.cpp introduces support for different computation backends (CPU, CUDA, Metal), while simple-ctx.cpp uses only the CPU.
-
+/*
+1. Allocate ggml_context to store tensor data
+2. Create tensors and set data
+3. Create a ggml_cgraph for mul_mat operation
+4. Run the computation
+5. Retrieve results (output tensors)
+6. Free memory and exit
 */
+
 #include "ggml.h"
 
 #include <cassert>
