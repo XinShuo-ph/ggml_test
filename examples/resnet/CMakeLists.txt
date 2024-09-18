@@ -1,15 +1,14 @@
 #
-# simple-ctx
-
-set(TEST_TARGET simple-matrix-ctx)
-add_executable(${TEST_TARGET} simple-ctx.cpp)
+# resnet-ctx
+set(TEST_TARGET resnet-ctx)
+add_executable(${TEST_TARGET} resnet-ctx.cpp)
 target_link_libraries(${TEST_TARGET} PRIVATE ggml)
 
 #
-# simple-backend
-set(TEST_TARGET simple-matrix-backend)
-add_executable(${TEST_TARGET} simple-backend.cpp)
-target_link_libraries(${TEST_TARGET} PRIVATE ggml)
+# resnet-backend
+# set(TEST_TARGET resnet-backend)
+# add_executable(${TEST_TARGET} resnet-backend.cpp)
+# target_link_libraries(${TEST_TARGET} PRIVATE ggml)
 
 if (GGML_CUDA)
     add_compile_definitions(GGML_USE_CUDA)

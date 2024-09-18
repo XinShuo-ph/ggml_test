@@ -288,6 +288,20 @@ if __name__ == '__main__':
     # Instantiate the model
     model = resnet18().to(device)
 
+    # Load or save the model
+    # Load or save the model
+    model_path = f'model/resnet.pth'
+
+    # Ensure the 'model' directory exists
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"Loaded model from {model_path}")
+    else:
+        torch.save(model.state_dict(), model_path)
+        print(f"Saved model to {model_path}")
+
     # Print model summary
     print("\nModel Summary:")
     summary(
