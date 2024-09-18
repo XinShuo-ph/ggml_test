@@ -4,8 +4,8 @@ import os
 from torchinfo import summary
 
 # Check if CUDA is available
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 # Define MLP Layer
 class MLP(nn.Module):
@@ -15,6 +15,18 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size, dtype=torch.float32)  # First fully connected layer
         self.fc2 = nn.Linear(hidden_size, output_size, dtype=torch.float32)  # Second fully connected layer
         self.relu = nn.ReLU()  # ReLU activation function
+
+        # Initialize weights and biases to specific values
+        torch.manual_seed(0)  # For reproducibility
+
+        # Initialize weights
+        self.fc1.weight.data = torch.randn(self.fc1.weight.size()) * 0.1
+        self.fc2.weight.data = torch.randn(self.fc2.weight.size()) * 0.1
+
+        # Initialize biases
+        self.fc1.bias.data = torch.randn(self.fc1.bias.size()) * 0.1
+        self.fc2.bias.data = torch.randn(self.fc2.bias.size()) * 0.1
+
 
     def forward(self, x):
         x = self.fc1(x)
@@ -58,7 +70,7 @@ if __name__ == '__main__':
     model = MLP().to(device)
 
     # Load or save the model
-    model_path = 'model/two_layer_mlp.pth'
+    model_path = f'model/two_layer_mlp.pth'
     if os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Loaded model from {model_path}")
