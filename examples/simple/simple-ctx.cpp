@@ -25,44 +25,46 @@ struct simple_model {
 
 // initialize the tensors of the model in this case two matrices 2x2
 void load_model(simple_model & model, float * a, float * b, int rows_A, int cols_A, int rows_B, int cols_B) {
+    // 1. Allocate `ggml_context` to store tensor data
     size_t ctx_size = 0;
-    {
-        ctx_size += rows_A * cols_A * ggml_type_size(GGML_TYPE_F32); // tensor a
-        ctx_size += rows_B * cols_B * ggml_type_size(GGML_TYPE_F32); // tensor b
-        ctx_size += 2 * ggml_tensor_overhead(), // tensors
-        ctx_size += ggml_graph_overhead(); // compute graph
-        ctx_size += 1024; // some overhead
-    }
+    // {
+    //     ctx_size += rows_A * cols_A * ggml_type_size(GGML_TYPE_F32); // tensor a
+    //     ctx_size += rows_B * cols_B * ggml_type_size(GGML_TYPE_F32); // tensor b
+    //     ctx_size += 2 * ggml_tensor_overhead(), // tensors
+    //     ctx_size += ggml_graph_overhead(); // compute graph
+    //     ctx_size += 1024; // some overhead
+    // }
+    ctx_size = 1 * 1024 * 1024; // 1 MB
 
+    // Allocate `ggml_context` to store tensor data
     struct ggml_init_params params {
             /*.mem_size   =*/ ctx_size,
             /*.mem_buffer =*/ NULL,
             /*.no_alloc   =*/ false, // NOTE: this should be false when using the legacy API
     };
-
     // create context
     model.ctx = ggml_init(params);
 
-    // create tensors
+    // 2. Create tensors and set data
     model.a = ggml_new_tensor_2d(model.ctx, GGML_TYPE_F32, cols_A, rows_A);
     model.b = ggml_new_tensor_2d(model.ctx, GGML_TYPE_F32, cols_B, rows_B);
-
     memcpy(model.a->data, a, ggml_nbytes(model.a));
     memcpy(model.b->data, b, ggml_nbytes(model.b));
 }
 
-// build the compute graph to perform a matrix multiplication
+// 3. Create a `ggml_cgraph` for mul_mat operation
 struct ggml_cgraph * build_graph(const simple_model& model) {
     struct ggml_cgraph  * gf = ggml_new_graph(model.ctx);
 
     // result = a*b^T
     struct ggml_tensor * result = ggml_mul_mat(model.ctx, model.a, model.b);
 
-    ggml_build_forward_expand(gf, result);
+    ggml_build_forward_expand(gf, result); // Mark the "result" tensor to be computed
+    ggml_graph_dump_dot(gf, NULL, "simple-ctx.dot"); // Print the cgraph for visualization
     return gf;
 }
 
-// compute with backend
+// 4. Run the computation
 struct ggml_tensor * compute(const simple_model & model) {
     struct ggml_cgraph * gf = build_graph(model);
 
@@ -104,14 +106,9 @@ int main(void) {
     // perform computation in cpu
     struct ggml_tensor * result = compute(model);
 
-    // get the result data pointer as a float array to print
+    // 5. Retrieve results (output tensors)
     std::vector<float> out_data(ggml_nelements(result));
     memcpy(out_data.data(), result->data, ggml_nbytes(result));
-
-    // expected result:
-    // [ 60.00 55.00 50.00 110.00
-    //   90.00 54.00 54.00 126.00
-    //   42.00 29.00 28.00 64.00 ]
 
     printf("mul mat (%d x %d) (transposed result):\n[", (int) result->ne[0], (int) result->ne[1]);
     for (int j = 0; j < result->ne[1] /* rows */; j++) {
@@ -125,7 +122,7 @@ int main(void) {
     }
     printf(" ]\n");
 
-    // free memory
+    // 6. Free memory and exit
     ggml_free(model.ctx);
     return 0;
 }

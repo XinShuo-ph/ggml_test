@@ -15,6 +15,7 @@ https://github.com/NexaAI/nexa-ggml/blob/main/examples/simple/simple-ctx.cpp
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <inttypes.h> // Include for PRId64 macro
 
 // Define the structure for a two layer MLP
 struct mlp_model {
@@ -52,10 +53,10 @@ bool load_model(const std::string & fname, mlp_model & model) {
     }
 
     // Print dimensions of loaded tensors with correct format specifiers
-    fprintf(stdout, "w1 dimensions: %ld x %ld\n", model.w1->ne[0], model.w1->ne[1]); // ne : number of elements
-    fprintf(stdout, "b1 dimensions: %ld\n", model.b1->ne[0]);
-    fprintf(stdout, "w2 dimensions: %ld x %ld\n", model.w2->ne[0], model.w2->ne[1]);
-    fprintf(stdout, "b2 dimensions: %ld\n", model.b2->ne[0]);
+    fprintf(stdout, "w1 dimensions: %" PRId64 " x %" PRId64 "\n", model.w1->ne[0], model.w1->ne[1]); // ne : number of elements
+    fprintf(stdout, "b1 dimensions: %" PRId64 "\n", model.b1->ne[0]);
+    fprintf(stdout, "w2 dimensions: %" PRId64 " x %" PRId64 "\n", model.w2->ne[0], model.w2->ne[1]);
+    fprintf(stdout, "b2 dimensions: %" PRId64 "\n", model.b2->ne[0]);
 
     gguf_free(ctx);
     return true;
