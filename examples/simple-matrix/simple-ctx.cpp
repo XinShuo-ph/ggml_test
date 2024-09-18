@@ -1,5 +1,5 @@
 /*
-1. Allocate ggml_context to store tensor data
+1. Allocate `ggml_context` to store tensor data
 2. Create tensors and set data
 3. Create a ggml_cgraph for mul_mat operation
 4. Run the computation
@@ -30,12 +30,6 @@ int main(void) {
     // 1. Allocate `ggml_context` to store tensor data
     // Calculate the size needed to allocate
     size_t ctx_size = 0;
-    // ctx_size += rows_A * cols_A * ggml_type_size(GGML_TYPE_F32); // tensor a
-    // ctx_size += rows_B * cols_B * ggml_type_size(GGML_TYPE_F32); // tensor b
-    // ctx_size += rows_A * rows_B * ggml_type_size(GGML_TYPE_F32); // result
-    // ctx_size += 3 * ggml_tensor_overhead(); // metadata for 3 tensors
-    // ctx_size += ggml_graph_overhead(); // compute graph
-    // ctx_size += 1024; // some overhead (exact calculation omitted for simplicity)
     ctx_size = 1 * 1024 * 1024; // 1 MB
 
     // Allocate `ggml_context` to store tensor data
@@ -44,21 +38,20 @@ int main(void) {
         /*.mem_buffer =*/ NULL,
         /*.no_alloc   =*/ false,
     };
-    struct ggml_context * ctx = ggml_init(params);
+    struct ggml_context * ctx = ggml_init(params); // ctx manages memory allocation for these tensors.
 
     // 2. Create tensors and set data
-    struct ggml_tensor * tensor_a = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, cols_A, rows_A);
-    struct ggml_tensor * tensor_b = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, cols_B, rows_B);
-    memcpy(tensor_a->data, matrix_A, ggml_nbytes(tensor_a));
-    memcpy(tensor_b->data, matrix_B, ggml_nbytes(tensor_b));
+    struct ggml_tensor * tensor_a = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, cols_A, rows_A); // initialize tensor A
+    struct ggml_tensor * tensor_b = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, cols_B, rows_B); // initialize tensor B
+    memcpy(tensor_a->data, matrix_A, ggml_nbytes(tensor_a)); // copy the data from the pre-defined arrays matrix_A to tensor_a
+    memcpy(tensor_b->data, matrix_B, ggml_nbytes(tensor_b)); // copy the data from the pre-defined arrays matrix_B to tensor_b
 
 
-    // 3. Create a `ggml_cgraph` for mul_mat operation
+    // 3. Create ggml_cgraph using forward computation
     struct ggml_cgraph * gf = ggml_new_graph(ctx);
 
     // result = a*b^T
     // Pay attention: ggml_mul_mat(A, B) ==> B will be transposed internally
-    // the result is transposed
     struct ggml_tensor * result = ggml_mul_mat(ctx, tensor_a, tensor_b);
 
     // Mark the "result" tensor to be computed

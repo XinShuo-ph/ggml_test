@@ -1,3 +1,18 @@
+/*
+1. Initialize ggml_backend
+2. Allocate ggml_context to store tensor metadata (we don't need to allocate tensor data right away)
+3. Create tensors metadata (only their shapes and data types)
+4. Allocate a ggml_backend_buffer to store all tensors
+5. Copy tensor data from main memory (RAM) to backend buffer
+5. Create a ggml_cgraph for mul_mat operation
+7. Create a ggml_gallocr for cgraph allocation
+8. Optionally: schedule the cgraph using ggml_backend_sched
+9. Run the computation
+10. Retrieve results (output tensors)
+11. Free memory and exit
+*/
+
+
 #include "ggml.h"                 // Include the main GGML header
 #include "ggml-alloc.h"           // Include GGML allocation utilities
 #include "ggml-backend.h"         // Include GGML backend interface
@@ -18,43 +33,6 @@
 #include <map>                    // Include for std::map container
 #include <string>                 // Include for std::string
 #include <vector>                 // Include for std::vector container
-
-/*
-Model Structure:
-   - A `simple_model` struct is defined, containing two tensors (`a` and `b`), a backend, a backend buffer, and a GGML context.
-
-1. Model Loading:
-   - The `load_model` function initializes the model:
-     - It sets up the appropriate backend (CUDA, Metal, or CPU).
-     - Creates a GGML context and two tensors (a and b) representing 2D matrices.
-     - Allocates memory for these tensors in the backend buffer.
-     - Loads data into the tensors.
-
-2. Graph Building:
-   - The `build_graph` function creates a computation graph for matrix multiplication:
-     - It sets up a temporary GGML context.
-     - Defines the operation: result = a * b^T (matrix multiplication with b transposed).
-     - Builds the forward pass of the graph.
-
-3. Computation:
-   - The `compute` function performs the actual computation:
-     - It builds the graph, allocates memory for intermediate tensors.
-     - Executes the computation using the specified backend.
-
-4. Main Function:
-   - Initializes input matrices A (4x2) and B (3x2, stored in transposed form).
-   - Loads the model with these matrices.
-   - Allocates memory for computation.
-   - Performs the matrix multiplication.
-   - Retrieves and prints the result.
-
-5. Memory Management:
-   - The code properly frees allocated resources at the end.
-
-The key feature of this implementation is its ability to use different backends (CPU, CUDA, or Metal) for computation, depending on what's available. This allows for potential performance improvements on systems with compatible GPUs.
-
-The matrix multiplication performed is between a 4x2 matrix (A) and a 2x3 matrix (B^T), resulting in a 4x3 matrix. The code demonstrates how to set up, compute, and retrieve results using the GGML library, showcasing its flexibility in handling different computation backends.
-*/
 
 // Define a default log callback function
 static void ggml_log_callback_default(ggml_log_level level, const char *text, void *user_data)
@@ -78,11 +56,10 @@ struct simple_model
     struct ggml_context *ctx;     // GGML context for tensor management
 };
 
-// initialize the tensors of the model in this case two matrices 2x2
-// 1. Model Loading
+
 void load_model(simple_model &model, float *a, float *b, int rows_A, int cols_A, int rows_B, int cols_B)
 {
-    // initialize the backend
+// 1. Initialize backend
 #ifdef GGML_USE_CUDA
     fprintf(stderr, "%s: using CUDA backend\n", __func__);
     model.backend = ggml_backend_cuda_init(0); // Initialize CUDA backend for device 0
@@ -101,15 +78,13 @@ void load_model(simple_model &model, float *a, float *b, int rows_A, int cols_A,
         fprintf(stderr, "%s: ggml_backend_metal_init() failed\n", __func__);
     }
 #endif
-
-    // if there aren't GPU Backends fallback to CPU backend
-    if (!model.backend)
+    if (!model.backend) // if there aren't GPU Backends fallback to CPU backend
     {
         model.backend = ggml_backend_cpu_init();
     }
 
+    // 2. Allocate `ggml_context` to store tensor data
     int num_tensors = 2; // Number of tensors in the model, namely 'a' and 'b'
-
     // Set up initialization parameters for GGML context
     struct ggml_init_params params
     {
@@ -121,20 +96,19 @@ void load_model(simple_model &model, float *a, float *b, int rows_A, int cols_A,
     // create context
     model.ctx = ggml_init(params);
 
-    // Create tensors for matrices A and B
+    // 3. Create tensors metadata (only their shapes and data types)
     model.a = ggml_new_tensor_2d(model.ctx, GGML_TYPE_F32, cols_A, rows_A);
     model.b = ggml_new_tensor_2d(model.ctx, GGML_TYPE_F32, cols_B, rows_B);
 
-    // create a backend buffer (backend memory) and alloc the tensors from the context
+    // 4. Allocate a `ggml_backend_buffer` to store all tensors
     model.buffer = ggml_backend_alloc_ctx_tensors(model.ctx, model.backend);
 
-    // load data from cpu memory to backend buffer
+    // 5. Copy tensor data from main memory (RAM) to backend buffer
     ggml_backend_tensor_set(model.a, a, 0, ggml_nbytes(model.a));
     ggml_backend_tensor_set(model.b, b, 0, ggml_nbytes(model.b));
 }
 
-// build the compute graph to perform a matrix multiplication
-// 2. Graph Building
+// 6. Create a `ggml_cgraph` for mul_mat operation
 struct ggml_cgraph *build_graph(const simple_model &model)
 {
     // Allocate buffer for temporary context
@@ -165,9 +139,8 @@ struct ggml_cgraph *build_graph(const simple_model &model)
     return gf;
 }
 
-// Function to perform the computation using the specified backend
-// 3. Computation
-struct ggml_tensor *compute(const simple_model &model, ggml_gallocr_t allocr)
+// 7. Create a `ggml_gallocr` for cgraph computation
+struct ggml_tensor *compute(const simple_model &model, ggml_gallocr_t allocr) // Function to perform the computation using the specified backend
 {
     // reset the allocator to free all the memory allocated during the previous inference
     struct ggml_cgraph *gf = build_graph(model);
@@ -175,6 +148,7 @@ struct ggml_tensor *compute(const simple_model &model, ggml_gallocr_t allocr)
     // Allocate memory for graph tensors
     ggml_gallocr_alloc_graph(allocr, gf);
 
+    // 9. Run the computation
     int n_threads = 1; // Number of threads for multi-threaded operations
 
     if (ggml_backend_is_cpu(model.backend))
@@ -240,7 +214,7 @@ int main(void)
         fprintf(stderr, "%s: compute buffer size: %.4f KB\n", __func__, mem_size / 1024.0);
     }
 
-    // perform computation
+    // 10. Retrieve results (output tensors)
     struct ggml_tensor *result = compute(model, allocr); // 3. Computation
 
     // create a array to print result
@@ -269,8 +243,8 @@ int main(void)
     }
     printf(" ]\n");
 
-    // release backend memory used for computation
-    ggml_gallocr_free(allocr); // 4. Memory Management
+    // 11. Free memory and exit
+    ggml_gallocr_free(allocr); // release backend memory used for computation
 
     // free memory
     ggml_free(model.ctx);
