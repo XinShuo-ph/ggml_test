@@ -50,6 +50,7 @@ struct mlp_model {
     ggml_backend_buffer_t buffer;    // Backend buffer to store tensor data
 };
 
+
 // Function to load the model from a file
 bool load_model(const std::string & fname, mlp_model & model) {
     // Initialize the backend
@@ -157,24 +158,49 @@ void print_tensor_stats(const char* name, struct ggml_tensor* t) {
 
 // Function to build the compute graph
 struct ggml_cgraph * build_graph(
-        struct ggml_context * ctx0,
         const mlp_model & model,
-        const std::vector<float> & input_data,
+        const std::vector<float>::size_type input_data_size,  // input data should not be set when building graph
         struct ggml_tensor ** result_ptr) {
 
+    // the context for compute graph  should be different from the ctx for model
+    // for instance, refer to gpt2_graph, a new context is created to build the graph
+    //  looks like the ctx for a model is for hyperparameters of the tensors,
+    //      while the ctx for a graph is for parameters/operations defining the graph
+
+    // Allocate buffer for temporary context
+    static size_t buf_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
+    static std::vector<uint8_t> buf(buf_size);
+
+    // Set up initialization parameters for temporary context
+    struct ggml_init_params params0 = {
+        /*.mem_size   =*/buf_size,
+        /*.mem_buffer =*/buf.data(),
+        /*.no_alloc   =*/true, // Defer tensor allocation
+    };
+
+    // create a temporally context to build the graph
+    struct ggml_context *ctx0 = ggml_init(params0);
+
+
     // Create computation graph
+    std::cout << "Creating computation graph." << std::endl;
     struct ggml_cgraph * gf = ggml_new_graph(ctx0);
 
     // Create input tensor
-    struct ggml_tensor * input = ggml_new_tensor_1d(ctx0, GGML_TYPE_F32, input_data.size());
+    std::cout << "Creating input tensor." << std::endl;
+    struct ggml_tensor * input = ggml_new_tensor_1d(ctx0, GGML_TYPE_F32, input_data_size);
     ggml_set_name(input, "input");
 
-    // Copy data into the backend buffer
-    ggml_backend_tensor_set(input, input_data.data(), 0, ggml_nbytes(input));
+    ggml_set_input(input); // copying dta to input tensor should happen after the graph is built
+
+    // // Copy data into the backend buffer
+    // std::cout << "Copying data into the backend buffer." << std::endl;
+    // ggml_backend_tensor_set(input, input_data.data(), 0, ggml_nbytes(input));
 
     ggml_tensor * cur = input;
 
     // First layer
+    std::cout << "First layer." << std::endl;
     cur = ggml_mul_mat(ctx0, model.w1, cur);
     ggml_set_name(cur, "mul_mat_0");
     cur = ggml_add(ctx0, cur, model.b1);
@@ -183,6 +209,7 @@ struct ggml_cgraph * build_graph(
     ggml_set_name(cur, "relu_0"); // ReLU activation function
 
     // Second layer
+    std::cout << "Second layer." << std::endl;
     cur = ggml_mul_mat(ctx0, model.w2, cur);
     ggml_set_name(cur, "mul_mat_1");
     cur = ggml_add(ctx0, cur, model.b2);
@@ -240,19 +267,24 @@ int main(int argc, char ** argv) {
     std::vector<float> input_data = {0.5, 0.4, 0.3, 0.2, 0.1};
 
     // Use the same context as the model for computation
+    std::cout << "Using the same context as the model for computation." << std::endl;
     struct ggml_context * ctx = model.ctx;
 
     // Create an allocator
+    std::cout << "Creating an allocator." << std::endl;
     ggml_gallocr_t allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(model.backend));
 
     // Build the computation graph
+    std::cout << "Building the computation graph." << std::endl;
     struct ggml_tensor * result = NULL;
-    struct ggml_cgraph * gf = build_graph(ctx, model, input_data, &result);
+    struct ggml_cgraph * gf = build_graph( model, input_data.size(), &result);
 
     // Reserve memory for the graph
+    std::cout << "Reserving memory for the graph." << std::endl;
     ggml_gallocr_reserve(allocr, gf);
 
     // Get required buffer size
+    std::cout << "Getting required buffer size." << std::endl;
     size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
 
     fprintf(stderr, "%s: compute buffer size: %.4f KB\n", __func__, mem_size / 1024.0);
@@ -260,7 +292,13 @@ int main(int argc, char ** argv) {
     // Allocate memory for graph tensors
     ggml_gallocr_alloc_graph(allocr, gf);
 
+    // set the graph inputs after the graph is built and memory is allocated
+    struct ggml_tensor * input = ggml_graph_get_tensor(gf, "input");  // Get the input tensor, name is set when build_graph()
+    ggml_backend_tensor_set(input, input_data.data(), 0, ggml_nbytes(input));
+    
+
     // Set number of threads if using CPU backend
+    std::cout << "Setting number of threads if using CPU backend." << std::endl;
     int n_threads = 4; // Adjust as needed
     if (ggml_backend_is_cpu(model.backend)) {
         ggml_backend_cpu_set_n_threads(model.backend, n_threads);
@@ -273,9 +311,11 @@ int main(int argc, char ** argv) {
     #endif
 
     // Compute the graph
+    std::cout << "Computing the graph." << std::endl;
     ggml_backend_graph_compute(model.backend, gf);
 
     // Copy result data from backend memory to CPU
+    std::cout << "Copying result data from backend memory to CPU." << std::endl;
     std::vector<float> output_data(ggml_nelements(result));
     ggml_backend_tensor_get(result, output_data.data(), 0, ggml_nbytes(result));
 
